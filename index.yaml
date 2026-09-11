@@ -1,0 +1,32 @@
+apiVersion: v1
+entries:
+  postgresql:
+  - annotations:
+      artifacthub.io/alternativeName: postgres
+      artifacthub.io/category: database
+      artifacthub.io/changes: |
+        - kind: added
+          description: Support a fixed Kubernetes Service NodePort with schema validation.
+        - kind: added
+          description: Document native PostgreSQL configuration for Helm and Docker users.
+    apiVersion: v2
+    appVersion: "16.4"
+    created: "2026-09-11T06:49:11.377731345Z"
+    description: A maintainable single-instance PostgreSQL Helm chart using the official
+      image
+    digest: 85eaf2d8edd940cb33768c8f61e5890cbda9989031585ec2d0cdea84487501bd
+    home: https://www.postgresql.org/
+    keywords:
+    - database
+    - postgres
+    - postgresql
+    maintainers:
+    - name: middleware-charts
+    name: postgresql
+    sources:
+    - https://github.com/postgres/postgres
+    type: application
+    urls:
+    - postgresql-0.1.1.tgz
+    version: 0.1.1
+generated: "2026-09-11T06:49:11.377737767Z"
