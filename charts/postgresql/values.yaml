@@ -87,6 +87,9 @@ persistence:
 service:
   type: ClusterIP
   port: 5432
+  # Optional fixed NodePort. Leave unset to let Kubernetes allocate one.
+  # Applies only when type is NodePort or LoadBalancer.
+  nodePort: null
   annotations: {}
   clusterIP: ""
   loadBalancerIP: ""

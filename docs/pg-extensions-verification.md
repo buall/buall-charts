@@ -1,7 +1,7 @@
 # PostgreSQL 扩展镜像（14-18）构建与验证报告
 
 - 日期：2026-09-10
-- 验证环境：`vultr` 上的 `ops-charts` kind 集群
+- 验证环境：隔离测试环境
 - 验证对象：当前 Dockerfile 构建的镜像，以及由当前源码打包得到的
   `charts/postgresql` Chart。
 
@@ -28,8 +28,7 @@ CMake 或开发头文件。
 
 ## Chart 集成验证
 
-使用当前源码打包生成的 Chart 安装五个镜像。测试使用独立 namespace，完成后已删除；
-既有 `chart-test` release 未被修改。
+使用当前源码打包生成的 Chart 安装五个镜像，验证完成后临时测试资源已清理。
 
 每个 PostgreSQL 版本均完成以下检查：
 

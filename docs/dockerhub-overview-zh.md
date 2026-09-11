@@ -35,7 +35,7 @@ docker run -d \
   -e POSTGRES_PASSWORD=change-me \
   -e POSTGRES_DB=app \
   -p 5432:5432 \
-  -v postgres_data:/var/lib/postgresql/data \
+  -v postgres_data:/var/lib/postgresql \
   buall/postgres-stack:18.6 \
   -c shared_preload_libraries=timescaledb,pg_cron,pgaudit \
   -c cron.database_name=app \
@@ -55,6 +55,37 @@ SQL
 ```
 
 > `pg_cron` 只能在一个数据库中创建；`cron.database_name` 必须与创建 `pg_cron` 扩展的数据库一致。
+
+## 服务端参数配置
+
+可在镜像名之后使用 PostgreSQL 原生 `-c` 参数配置服务端。`POSTGRES_*` 环境变量仅
+用于首次初始化空数据目录，不能替代 `postgresql.conf`；`POSTGRESQL_MAX_CONNECTIONS`
+是 Bitnami 变量，对此镜像无效。
+
+```bash
+docker run -d \
+  --name postgres-configured \
+  -e POSTGRES_PASSWORD=change-me \
+  -e POSTGRES_DB=app \
+  -p 5432:5432 \
+  -v postgres_data:/var/lib/postgresql \
+  buall/postgres-stack:18.6 \
+  -c max_connections=300 \
+  -c shared_buffers=1GB \
+  -c wal_level=logical \
+  -c max_replication_slots=20 \
+  -c max_wal_senders=20
+```
+
+大量参数建议挂载 `postgresql.conf`，并追加
+`-c config_file=/etc/postgresql/postgresql.conf`。`max_connections`、
+`shared_buffers`、逻辑复制参数和 `shared_preload_libraries` 都需要重启才会生效。
+完整参数请参阅 PostgreSQL [完整官方手册](https://www.postgresql.org/docs/current/)
+和 [服务端配置参数索引](https://www.postgresql.org/docs/current/runtime-config.html)；
+将 URL 中的 `current` 替换为镜像大版本号，例如 `18`。
+
+PostgreSQL 18 应将数据卷挂载到 `/var/lib/postgresql`；PostgreSQL 14 至 17 则应
+挂载到 `/var/lib/postgresql/data`。
 
 ## Helm Chart 使用
 
