@@ -1,26 +1,30 @@
 #!/usr/bin/env bash
-set -euo pipefail
 
-# Integration-test the packaged chart against a Kubernetes cluster whose nodes
-# already contain the requested PostgreSQL extension images.
+# 将已打包的 PostgreSQL Chart 安装到 Kubernetes 集群，验证各受支持 PostgreSQL
+# 版本的扩展初始化、持久化和 metrics 相关配置。脚本会创建临时 namespace 与
+# release，并在退出时删除。
 #
-# Required inputs:
-#   CHART_PACKAGE       Path to a packaged postgresql-*.tgz file.
+# 集群节点必须已包含或能够拉取所需镜像。
 #
-# Optional inputs:
-#   TEST_NAMESPACE       Temporary namespace (default: postgresql-integration)
-#   IMAGE_REGISTRY       Image registry (default: registry.example.com)
-#   IMAGE_REPOSITORY     Image repository (default: postgres-extensions)
-#   IMAGE_TAG_SUFFIX     Suffix appended to 14.24/15.19/... (default: empty)
-#   HELM_TIMEOUT         Helm wait timeout (default: 5m)
+# 必填输入：
+#   CHART_PACKAGE       已打包 postgresql-*.tgz 文件的路径。
 #
-# Example for the local kind cluster used by this repository:
-#   CHART_PACKAGE=dist/postgresql-0.1.0.tgz \
+# 可选输入：
+#   TEST_NAMESPACE       临时 namespace（默认：postgresql-integration）
+#   IMAGE_REGISTRY       镜像仓库域名（默认：registry.example.com）
+#   IMAGE_REPOSITORY     镜像仓库路径（默认：postgres-extensions）
+#   IMAGE_TAG_SUFFIX     追加到 14.24/15.19/... 的 tag 后缀（默认：空）
+#   HELM_TIMEOUT         Helm 等待超时（默认：5m）
+#
+# 示例：
+#   CHART_PACKAGE=dist/postgresql-0.1.1.tgz \
 #   IMAGE_TAG_SUFFIX=.locked \
 #   ./scripts/test-integration.sh
 
+set -euo pipefail
+
 root_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-chart_package="${CHART_PACKAGE:-${root_dir}/dist/postgresql-0.1.0.tgz}"
+chart_package="${CHART_PACKAGE:-${root_dir}/dist/postgresql-0.1.1.tgz}"
 test_namespace="${TEST_NAMESPACE:-postgresql-integration}"
 image_registry="${IMAGE_REGISTRY:-registry.example.com}"
 image_repository="${IMAGE_REPOSITORY:-postgres-extensions}"

@@ -8,6 +8,9 @@ SPDX-License-Identifier: Apache-2.0
 {{/*
 Expose the PostgreSQL application port.
 */}}
+{{- if and .Values.service.nodePort (not (or (eq .Values.service.type "NodePort") (eq .Values.service.type "LoadBalancer"))) }}
+{{- fail "service.nodePort is only supported when service.type is NodePort or LoadBalancer" }}
+{{- end }}
 apiVersion: v1
 kind: Service
 metadata:
@@ -39,5 +42,8 @@ spec:
       port: {{ .Values.service.port }}
       targetPort: postgresql
       protocol: TCP
+      {{- with .Values.service.nodePort }}
+      nodePort: {{ . }}
+      {{- end }}
   selector:
     {{- include "postgresql.selectorLabels" . | nindent 4 }}

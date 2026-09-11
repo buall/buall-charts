@@ -17,7 +17,7 @@ matching `ci/<chart>/` directory to include it in these checks.
 For a cluster-level test using images already loaded on the nodes, run:
 
 ```bash
-CHART_PACKAGE=dist/postgresql-0.1.0.tgz \
+CHART_PACKAGE=dist/postgresql-0.1.1.tgz \
 IMAGE_REGISTRY=registry.example.com \
 IMAGE_REPOSITORY=postgres-extensions \
 IMAGE_TAG_SUFFIX=<image-tag-suffix> \

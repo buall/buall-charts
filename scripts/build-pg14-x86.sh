@@ -1,13 +1,14 @@
 #!/usr/bin/env bash
 #
-# build-pg14-x86.sh — build the PostgreSQL 14 x86 (amd64) extension image
-# on the Vultr remote. Intended to run ON the remote server.
+# 从准备好的 Docker 构建目录构建 PostgreSQL 14 amd64 扩展镜像。输入包括
+# BUILD_DIR、PG_TAG、PG_VERSION 和 PLATFORM；脚本会按需创建 BUILD_DIR，
+# 并将镜像写入本地 Docker daemon，但不会推送镜像。
 #
 # The Dockerfile (images/postgres-extensions/14/Dockerfile) must be present
 # in the build directory before running this script. It pulls the base image
 # and all extension sources at build time, so no other local files are needed.
 #
-# Usage:
+# 示例：
 #   BUILD_DIR=/tmp/pg14-build PG_TAG=postgres-extensions:14.24 bash build-pg14-x86.sh
 #
 set -euo pipefail

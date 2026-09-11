@@ -43,6 +43,73 @@ docker build --platform linux/amd64 \
   images/postgres-extensions/16
 ```
 
+## Docker 运行时配置
+
+这些镜像保留 PostgreSQL 官方 entrypoint。`POSTGRES_USER`、
+`POSTGRES_PASSWORD`、`POSTGRES_DB` 和 `POSTGRES_INITDB_ARGS` 仅用于首次初始化
+空数据目录；它们不用于配置 PostgreSQL 服务端参数，修改后也不会改变已有数据库。
+
+配置少量服务端参数时，可在 `docker run` 后追加 PostgreSQL 原生 `-c` 参数。
+镜像 entrypoint 会将其传递给 `postgres` 服务进程：
+
+```bash
+docker run -d \
+  --name postgres-stack \
+  -e POSTGRES_PASSWORD=change-me \
+  -e POSTGRES_DB=app \
+  -p 5432:5432 \
+  -v postgres_data:/var/lib/postgresql \
+  registry.example.com/postgres-extensions:18.6 \
+  -c max_connections=300 \
+  -c shared_buffers=1GB \
+  -c wal_level=logical \
+  -c max_replication_slots=20 \
+  -c max_wal_senders=20 \
+  -c shared_preload_libraries=timescaledb,pg_cron,pgaudit \
+  -c cron.database_name=app
+```
+
+示例使用 PostgreSQL 18，其官方镜像的数据目录位于
+`/var/lib/postgresql` 下。PostgreSQL 14 至 17 应将命名卷挂载到
+`/var/lib/postgresql/data`。不要使用 `POSTGRESQL_MAX_CONNECTIONS`：这是
+Bitnami 变量，这些镜像会忽略它。
+
+对于纳管配置或较长的参数集，挂载配置文件并将其作为服务端配置文件：
+
+```conf
+# postgresql.conf
+max_connections = 300
+shared_buffers = 1GB
+effective_cache_size = 3GB
+work_mem = 16MB
+wal_level = logical
+max_replication_slots = 20
+max_wal_senders = 20
+shared_preload_libraries = 'timescaledb,pg_cron,pgaudit'
+cron.database_name = 'app'
+log_min_duration_statement = 1000
+```
+
+```bash
+docker run -d \
+  --name postgres-stack \
+  -e POSTGRES_PASSWORD=change-me \
+  -e POSTGRES_DB=app \
+  -p 5432:5432 \
+  -v postgres_data:/var/lib/postgresql \
+  -v "$PWD/postgresql.conf:/etc/postgresql/postgresql.conf:ro" \
+  registry.example.com/postgres-extensions:18.6 \
+  -c config_file=/etc/postgresql/postgresql.conf
+```
+
+`max_connections`、`shared_buffers`、`wal_level`、`max_replication_slots`、
+`max_wal_senders` 和 `shared_preload_libraries` 都需要重启服务才能生效。可用
+`SHOW max_connections;` 或
+`SELECT name, setting, context FROM pg_settings` 检查参数值及变更级别。完整参数
+清单请查阅 PostgreSQL [完整官方手册](https://www.postgresql.org/docs/current/) 和
+[服务端配置参数索引](https://www.postgresql.org/docs/current/runtime-config.html)；将
+URL 中的 `current` 替换为镜像的大版本号，例如 `18`。
+
 镜像发布后，在 chart values 中启用扩展。注意 chart 按
 `registry/repository:tag` 拼装镜像引用，因此 registry 与 repository 必须分开设置：
 

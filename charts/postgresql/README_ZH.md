@@ -99,6 +99,20 @@ persistence:
 3. 卸载 Helm release，确认 PVC 保留。
 4. 使用相同 release 重新安装，并再次读取数据。
 
+## Service 暴露
+
+PostgreSQL Service 默认使用 `ClusterIP`。如需固定 NodePort，请配置集群
+NodePort 策略允许范围内的整数（Kubernetes 默认范围为 30000-32767）：
+
+```yaml
+service:
+  type: NodePort
+  nodePort: 30254
+```
+
+不设置 `service.nodePort` 时由 Kubernetes 自动分配端口。该字段仅可与
+`service.type: NodePort` 或 `LoadBalancer` 一起使用。
+
 ## 资源配置
 
 `resourcesPreset` 支持 `none`、`nano`、`micro`、`small`、`medium`、
@@ -125,6 +139,70 @@ postgresql:
 脚本会挂载到 `/docker-entrypoint-initdb.d/`，仅在官方镜像第一次初始化数据
 目录时执行。已有 PVC 不会再次执行这些脚本。PostgreSQL 配置会以文件形式
 挂载，并通过 PostgreSQL 原生的 `-c` 参数传入。
+
+### 常用 `postgresql.conf` 参数
+
+服务端参数统一写在 `postgresql.configuration` 中；官方镜像不支持
+`POSTGRESQL_MAX_CONNECTIONS` 这类 Bitnami 风格环境变量。
+
+| 类别 | 参数 | 注意事项 |
+| --- | --- | --- |
+| 连接 | `max_connections` | 最大并发数据库连接数；需要重启，并会增加内存消耗。大量客户端并发连接应优先评估连接池。 |
+| 连接 | `superuser_reserved_connections` | 为超级用户保留的连接槽；需要重启，且必须小于 `max_connections`。 |
+| 连接 | `listen_addresses` | PostgreSQL 监听的网络接口；需要重启。对外暴露时应配合严格的 `pg_hba.conf`。 |
+| 内存 | `shared_buffers` | PostgreSQL 共享缓冲区大小；需要重启，应结合容器内存 limit 一起规划。 |
+| 内存 | `effective_cache_size` | 供优化器估算操作系统和 PostgreSQL 缓存容量；不实际分配内存。 |
+| 内存 | `work_mem` | 每个排序/哈希操作的上限；一条查询和一个会话中都可能多次使用，不是全局内存分配。 |
+| 内存 | `maintenance_work_mem` | `VACUUM`、创建索引等维护操作使用的工作内存。 |
+| 逻辑复制 | `wal_level` | 设为 `logical` 可启用逻辑解码；需要重启。 |
+| 逻辑复制 | `max_replication_slots` | 最大复制槽数量；需要重启。非活跃复制槽可能持续保留 WAL，应持续监控。 |
+| 逻辑复制 | `max_wal_senders` | 服务复制或备份的最大进程数；需要重启。 |
+| WAL 保留 | `max_wal_size` | 触发 checkpoint 的目标值，不是 WAL 的硬性大小上限。 |
+| WAL 保留 | `min_wal_size` | checkpoint 后保留用于复用的最小 WAL 容量。 |
+| WAL 保留 | `wal_keep_size` | 为备库保留的最小 WAL 容量；不能防止非活跃复制槽持续占用 WAL。 |
+| 日志 | `log_min_duration_statement` | 记录执行耗时达到阈值的 SQL，单位为毫秒；需评估日志量和敏感 SQL 数据。 |
+| 日志 | `log_connections` | 记录成功的连接请求。 |
+| 日志 | `log_disconnections` | 记录会话断开及持续时间。 |
+| 日志 | `log_line_prefix` | 在日志行中增加稳定的请求、用户、数据库或进程上下文。 |
+
+示例：
+
+```yaml
+postgresql:
+  configuration: |-
+    max_connections = 300
+    shared_buffers = 1GB
+    effective_cache_size = 3GB
+    work_mem = 16MB
+    wal_level = logical
+    max_replication_slots = 20
+    max_wal_senders = 20
+    log_min_duration_statement = 1000
+```
+
+配置变化会更新 StatefulSet checksum 并触发 Pod 滚动重建。对于
+`pg_settings.context` 为 `postmaster` 的参数（包括 `max_connections` 和
+逻辑复制参数），此重启是必需的。完整参数清单应以与 `image.tag` 对应的
+PostgreSQL 版本为准，可查阅官方
+[完整官方手册](https://www.postgresql.org/docs/current/) 和
+[服务端配置参数索引](https://www.postgresql.org/docs/current/runtime-config.html)。将任一
+URL 中的 `current` 替换为镜像的大版本号（例如 `16`）。尤其可参考
+[连接](https://www.postgresql.org/docs/current/runtime-config-connection.html)、
+[资源消耗](https://www.postgresql.org/docs/current/runtime-config-resource.html)、
+[WAL](https://www.postgresql.org/docs/current/runtime-config-wal.html) 和
+[日志](https://www.postgresql.org/docs/current/runtime-config-logging.html)文档。
+可在运行中的数据库查询可用参数及其变更级别：
+
+```sql
+SELECT name, setting, unit, context
+FROM pg_settings
+WHERE name IN (
+  'max_connections', 'shared_buffers', 'effective_cache_size', 'work_mem',
+  'wal_level', 'max_replication_slots', 'max_wal_senders',
+  'log_min_duration_statement'
+)
+ORDER BY name;
+```
 
 如果自定义镜像中已经包含扩展包，chart 可以根据扩展名自动生成幂等的
 `CREATE EXTENSION` 语句：

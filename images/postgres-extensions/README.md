@@ -52,6 +52,77 @@ docker build --platform linux/amd64 \
   images/postgres-extensions/16
 ```
 
+## Docker runtime configuration
+
+These images retain the official PostgreSQL entrypoint. `POSTGRES_USER`,
+`POSTGRES_PASSWORD`, `POSTGRES_DB`, and `POSTGRES_INITDB_ARGS` are bootstrap
+variables only: they take effect only while initializing an empty data
+directory. They do not configure PostgreSQL server parameters, and changing
+them does not modify an existing database.
+
+For a small set of server settings, append native PostgreSQL `-c` arguments to
+`docker run`. The image entrypoint passes them to the `postgres` server:
+
+```bash
+docker run -d \
+  --name postgres-stack \
+  -e POSTGRES_PASSWORD=change-me \
+  -e POSTGRES_DB=app \
+  -p 5432:5432 \
+  -v postgres_data:/var/lib/postgresql \
+  registry.example.com/postgres-extensions:18.6 \
+  -c max_connections=300 \
+  -c shared_buffers=1GB \
+  -c wal_level=logical \
+  -c max_replication_slots=20 \
+  -c max_wal_senders=20 \
+  -c shared_preload_libraries=timescaledb,pg_cron,pgaudit \
+  -c cron.database_name=app
+```
+
+The example uses PostgreSQL 18, whose official image persists data beneath
+`/var/lib/postgresql`. For PostgreSQL 14 through 17, mount the named volume at
+`/var/lib/postgresql/data` instead. Do not use `POSTGRESQL_MAX_CONNECTIONS`:
+it is a Bitnami variable and is ignored by these images.
+
+For a managed or longer configuration, mount a file and set it as the server
+configuration file:
+
+```conf
+# postgresql.conf
+max_connections = 300
+shared_buffers = 1GB
+effective_cache_size = 3GB
+work_mem = 16MB
+wal_level = logical
+max_replication_slots = 20
+max_wal_senders = 20
+shared_preload_libraries = 'timescaledb,pg_cron,pgaudit'
+cron.database_name = 'app'
+log_min_duration_statement = 1000
+```
+
+```bash
+docker run -d \
+  --name postgres-stack \
+  -e POSTGRES_PASSWORD=change-me \
+  -e POSTGRES_DB=app \
+  -p 5432:5432 \
+  -v postgres_data:/var/lib/postgresql \
+  -v "$PWD/postgresql.conf:/etc/postgresql/postgresql.conf:ro" \
+  registry.example.com/postgres-extensions:18.6 \
+  -c config_file=/etc/postgresql/postgresql.conf
+```
+
+`max_connections`, `shared_buffers`, `wal_level`, `max_replication_slots`,
+`max_wal_senders`, and `shared_preload_libraries` require a server restart.
+Inspect a setting and its change context with
+`SHOW max_connections;` or `SELECT name, setting, context FROM pg_settings`.
+For the complete, version-matched parameter list, see the PostgreSQL
+[official manual](https://www.postgresql.org/docs/current/) and [Server
+Configuration reference](https://www.postgresql.org/docs/current/runtime-config.html);
+replace `current` with the image major version, such as `18`.
+
 After publishing an image, enable the extensions in the chart values. Note that
 the chart composes the reference as `registry/repository:tag`, so the registry
 and repository must be set separately:

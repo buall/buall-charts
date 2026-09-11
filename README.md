@@ -11,4 +11,5 @@ than a vendor-specific runtime.
 
 See [docs/development.md](docs/development.md) for local validation and
 [docs/conventions.md](docs/conventions.md) for the shared values API.
-
+See [docs/publishing-charts.md](docs/publishing-charts.md) to publish charts on
+GitHub Pages and list them on Artifact Hub.
