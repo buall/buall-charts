@@ -1,0 +1,16 @@
+apiVersion: v2
+name: postgresql
+description: A maintainable single-instance PostgreSQL Helm chart using the official image
+type: application
+version: 0.1.0
+appVersion: "16.4"
+home: https://www.postgresql.org/
+sources:
+  - https://github.com/postgres/postgres
+keywords:
+  - database
+  - postgres
+  - postgresql
+maintainers:
+  - name: middleware-charts
+

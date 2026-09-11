@@ -1,0 +1,4 @@
+# Exercises the preset affinity helper while keeping the test disposable.
+persistence:
+  enabled: false
+podAntiAffinityPreset: hard

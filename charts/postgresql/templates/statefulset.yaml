@@ -1,0 +1,257 @@
+{{/*
+Copyright (c) 2026 middleware-charts contributors.
+SPDX-License-Identifier: Apache-2.0
+*/}}
+
+{{/* vim: set filetype=mustache: */}}
+
+{{- $fullname := include "postgresql.fullname" . -}}
+{{- $authSecretName := include "postgresql.auth.secretName" . -}}
+{{- $generatedPreload := include "postgresql.sharedPreloadLibraries" . | trim -}}
+{{- $generatedCronDatabase := include "postgresql.generatedCronDatabaseConfiguration" . | trim -}}
+{{- $hasRawPreload := contains "shared_preload_libraries" (default "" .Values.postgresql.configuration) -}}
+{{- $hasRawCronDatabase := contains "cron.database_name" (default "" .Values.postgresql.configuration) -}}
+{{- $useGeneratedPreload := and (ne $generatedPreload "") (not $hasRawPreload) -}}
+{{- $useGeneratedCronDatabase := and (ne $generatedCronDatabase "") (not $hasRawCronDatabase) -}}
+
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ $fullname }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "postgresql.labels" . | nindent 4 }}
+spec:
+  # Keep one stable PostgreSQL identity and let the headless Service manage DNS.
+  serviceName: {{ include "postgresql.headlessServiceName" . }}
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "postgresql.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "postgresql.selectorLabels" . | nindent 8 }}
+        {{- with .Values.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      {{- if or .Values.podAnnotations (or .Values.postgresql.configuration .Values.postgresql.pgHbaConfiguration $useGeneratedPreload $useGeneratedCronDatabase) }}
+      annotations:
+        {{- with .Values.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+        {{- if or .Values.postgresql.configuration .Values.postgresql.pgHbaConfiguration $useGeneratedPreload $useGeneratedCronDatabase }}
+        checksum/postgresql-config: {{ printf "%s\n%s\n%s\n%s" (default "" .Values.postgresql.configuration) (default "" .Values.postgresql.pgHbaConfiguration) $generatedPreload $generatedCronDatabase | sha256sum | quote }}
+        {{- end }}
+      {{- end }}
+    spec:
+      # Pod-level identity, image pull configuration, and scheduling controls.
+      serviceAccountName: {{ include "postgresql.serviceAccountName" . }}
+      automountServiceAccountToken: {{ .Values.serviceAccount.automountServiceAccountToken }}
+      {{- with (include "postgresql.imagePullSecrets" .) }}
+      imagePullSecrets:
+        {{- . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.podSecurityContext }}
+      securityContext:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with (include "postgresql.affinity" .) }}
+      affinity:
+        {{- . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.topologySpreadConstraints }}
+      topologySpreadConstraints:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- if .Values.volumePermissions.enabled }}
+      # Optional ownership correction for storage classes that need it.
+      initContainers:
+        - name: volume-permissions
+          image: {{ include "postgresql.volumePermissionsImage" . }}
+          imagePullPolicy: {{ .Values.volumePermissions.image.pullPolicy }}
+          command:
+            - sh
+            - -c
+          args:
+            - >-
+              mkdir -p {{ .Values.postgresql.pgdata }} &&
+              chown -R 999:999 /var/lib/postgresql/data
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/postgresql/data
+          resources:
+            {{- include "postgresql.resources" (dict "resources" .Values.volumePermissions.resources "preset" .Values.volumePermissions.resourcesPreset) | nindent 12 }}
+      {{- end }}
+      containers:
+        # The official PostgreSQL image and its native environment contract.
+        - name: postgresql
+          image: {{ include "postgresql.image" . }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          {{- if or .Values.postgresql.configuration .Values.postgresql.pgHbaConfiguration $useGeneratedPreload $useGeneratedCronDatabase }}
+          args:
+          {{- if or .Values.postgresql.configuration $useGeneratedPreload $useGeneratedCronDatabase }}
+            - -c
+            - config_file=/etc/postgresql/postgresql.conf
+            {{- end }}
+            {{- if .Values.postgresql.pgHbaConfiguration }}
+            - -c
+            - hba_file=/etc/postgresql/pg_hba.conf
+            {{- end }}
+          {{- end }}
+          ports:
+            - name: postgresql
+              containerPort: 5432
+              protocol: TCP
+          env:
+            - name: POSTGRES_USER
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $authSecretName }}
+                  key: {{ include "postgresql.auth.usernameKey" . }}
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $authSecretName }}
+                  key: {{ include "postgresql.auth.passwordKey" . }}
+            - name: POSTGRES_DB
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $authSecretName }}
+                  key: {{ include "postgresql.auth.databaseKey" . }}
+            - name: PGDATA
+              value: {{ .Values.postgresql.pgdata | quote }}
+            {{- with .Values.extraEnvVars }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          {{- with .Values.containerSecurityContext }}
+          securityContext:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- if .Values.startupProbe.enabled }}
+          startupProbe:
+            exec:
+              command:
+                {{- include "postgresql.probeCommand" . | nindent 16 }}
+            initialDelaySeconds: {{ .Values.startupProbe.initialDelaySeconds }}
+            periodSeconds: {{ .Values.startupProbe.periodSeconds }}
+            timeoutSeconds: {{ .Values.startupProbe.timeoutSeconds }}
+            failureThreshold: {{ .Values.startupProbe.failureThreshold }}
+            successThreshold: {{ .Values.startupProbe.successThreshold }}
+          {{- end }}
+          {{- if .Values.readinessProbe.enabled }}
+          readinessProbe:
+            exec:
+              command:
+                {{- include "postgresql.probeCommand" . | nindent 16 }}
+            initialDelaySeconds: {{ .Values.readinessProbe.initialDelaySeconds }}
+            periodSeconds: {{ .Values.readinessProbe.periodSeconds }}
+            timeoutSeconds: {{ .Values.readinessProbe.timeoutSeconds }}
+            failureThreshold: {{ .Values.readinessProbe.failureThreshold }}
+            successThreshold: {{ .Values.readinessProbe.successThreshold }}
+          {{- end }}
+          {{- if .Values.livenessProbe.enabled }}
+          livenessProbe:
+            exec:
+              command:
+                {{- include "postgresql.probeCommand" . | nindent 16 }}
+            initialDelaySeconds: {{ .Values.livenessProbe.initialDelaySeconds }}
+            periodSeconds: {{ .Values.livenessProbe.periodSeconds }}
+            timeoutSeconds: {{ .Values.livenessProbe.timeoutSeconds }}
+            failureThreshold: {{ .Values.livenessProbe.failureThreshold }}
+            successThreshold: {{ .Values.livenessProbe.successThreshold }}
+          {{- end }}
+          resources:
+            {{- include "postgresql.resources" (dict "resources" .Values.resources "preset" .Values.resourcesPreset) | nindent 12 }}
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/postgresql/data
+            {{- if or .Values.initdbScripts .Values.postgresql.extensions }}
+            - name: initdb
+              mountPath: /docker-entrypoint-initdb.d
+            {{- end }}
+            {{- if or .Values.postgresql.configuration .Values.postgresql.pgHbaConfiguration $useGeneratedPreload $useGeneratedCronDatabase }}
+            - name: postgresql-config
+              mountPath: /etc/postgresql
+            {{- end }}
+            {{- with .Values.extraVolumeMounts }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+        {{- if .Values.metrics.enabled }}
+        # Optional postgres_exporter sidecar.
+        - name: postgres-exporter
+          image: {{ include "postgresql.metricsImage" . }}
+          imagePullPolicy: {{ .Values.metrics.image.pullPolicy }}
+          ports:
+            - name: metrics
+              containerPort: 9187
+              protocol: TCP
+          env:
+            - name: POSTGRES_USER
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $authSecretName }}
+                  key: {{ include "postgresql.auth.usernameKey" . }}
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $authSecretName }}
+                  key: {{ include "postgresql.auth.passwordKey" . }}
+            - name: POSTGRES_DB
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $authSecretName }}
+                  key: {{ include "postgresql.auth.databaseKey" . }}
+            - name: DATA_SOURCE_NAME
+              value: postgresql://$(POSTGRES_USER):$(POSTGRES_PASSWORD)@127.0.0.1:5432/$(POSTGRES_DB)?sslmode=disable
+          {{- with .Values.metrics.containerSecurityContext }}
+          securityContext:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          resources:
+            {{- include "postgresql.resources" (dict "resources" .Values.metrics.resources "preset" .Values.metrics.resourcesPreset) | nindent 12 }}
+        {{- end }}
+      volumes:
+        {{- if or .Values.initdbScripts .Values.postgresql.extensions }}
+        - name: initdb
+          configMap:
+            name: {{ include "postgresql.initdbScriptsConfigMapName" . }}
+        {{- end }}
+        {{- if or .Values.postgresql.configuration .Values.postgresql.pgHbaConfiguration $useGeneratedPreload $useGeneratedCronDatabase }}
+        - name: postgresql-config
+          configMap:
+            name: {{ include "postgresql.configurationConfigMapName" . }}
+        {{- end }}
+        {{- with .Values.extraVolumes }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+        {{- if not .Values.persistence.enabled }}
+        - name: data
+          emptyDir: {}
+        {{- end }}
+  {{- if .Values.persistence.enabled }}
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+        {{- with .Values.persistence.annotations }}
+        annotations:
+          {{- toYaml . | nindent 10 }}
+        {{- end }}
+      spec:
+        accessModes:
+          {{- toYaml .Values.persistence.accessModes | nindent 10 }}
+        {{- with (include "postgresql.storageClass" .) }}
+        storageClassName: {{ . | quote }}
+        {{- end }}
+        resources:
+          requests:
+            storage: {{ .Values.persistence.size | quote }}
+  {{- end }}

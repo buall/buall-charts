@@ -1,0 +1,48 @@
+{
+  "$schema": "http://json-schema.org/schema#",
+  "type": "object",
+  "properties": {
+    "resourcesPreset": {
+      "type": "string",
+      "enum": ["none", "nano", "micro", "small", "medium", "large", "xlarge", "2xlarge"]
+    },
+    "resources": {"type": "object"},
+    "persistence": {
+      "type": "object",
+      "properties": {
+        "size": {"type": "string", "minLength": 1},
+        "storageClass": {"type": "string"}
+      }
+    },
+    "postgresql": {
+      "type": "object",
+      "properties": {
+        "extensions": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^[A-Za-z_][A-Za-z0-9_]*$"
+          }
+        },
+        "cronDatabaseName": {"type": "string"},
+        "sharedPreloadLibraries": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^[A-Za-z_][A-Za-z0-9_]*$"
+          }
+        },
+        "configuration": {"type": "string"},
+        "pgHbaConfiguration": {"type": "string"}
+      }
+    },
+    "service": {
+      "type": "object",
+      "properties": {
+        "type": {"type": "string", "enum": ["ClusterIP", "NodePort", "LoadBalancer"]}
+      }
+    },
+    "podAffinityPreset": {"type": "string", "enum": ["", "soft", "hard"]},
+    "podAntiAffinityPreset": {"type": "string", "enum": ["", "soft", "hard"]}
+  }
+}

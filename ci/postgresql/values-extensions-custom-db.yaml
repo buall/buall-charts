@@ -1,0 +1,16 @@
+image:
+  repository: example/postgres-with-extensions
+  tag: "16.15"
+
+postgresql:
+  extensions:
+    - timescaledb
+    - repmgr
+    - pgaudit
+    - pg_cron
+
+auth:
+  password: test-password
+  database: app
+persistence:
+  enabled: false
