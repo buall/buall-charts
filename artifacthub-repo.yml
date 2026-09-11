@@ -1,0 +1,4 @@
+# This file is published beside index.yaml on the gh-pages branch.
+# After adding the repository in Artifact Hub, set repositoryID and owners here
+# to claim ownership and enable the Verified Publisher badge.
+ignore: []
