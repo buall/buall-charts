@@ -1,0 +1,130 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Integration-test the packaged chart against a Kubernetes cluster whose nodes
+# already contain the requested PostgreSQL extension images.
+#
+# Required inputs:
+#   CHART_PACKAGE       Path to a packaged postgresql-*.tgz file.
+#
+# Optional inputs:
+#   TEST_NAMESPACE       Temporary namespace (default: postgresql-integration)
+#   IMAGE_REGISTRY       Image registry (default: registry.example.com)
+#   IMAGE_REPOSITORY     Image repository (default: postgres-extensions)
+#   IMAGE_TAG_SUFFIX     Suffix appended to 14.24/15.19/... (default: empty)
+#   HELM_TIMEOUT         Helm wait timeout (default: 5m)
+#
+# Example for the local kind cluster used by this repository:
+#   CHART_PACKAGE=dist/postgresql-0.1.0.tgz \
+#   IMAGE_TAG_SUFFIX=.locked \
+#   ./scripts/test-integration.sh
+
+root_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+chart_package="${CHART_PACKAGE:-${root_dir}/dist/postgresql-0.1.0.tgz}"
+test_namespace="${TEST_NAMESPACE:-postgresql-integration}"
+image_registry="${IMAGE_REGISTRY:-registry.example.com}"
+image_repository="${IMAGE_REPOSITORY:-postgres-extensions}"
+image_tag_suffix="${IMAGE_TAG_SUFFIX:-}"
+helm_timeout="${HELM_TIMEOUT:-5m}"
+
+[[ -f "${chart_package}" ]] || {
+  echo "chart package not found: ${chart_package}" >&2
+  exit 1
+}
+
+releases=()
+namespace_created=false
+cleanup() {
+  set +e
+  for release in "${releases[@]}"; do
+    helm uninstall "${release}" --namespace "${test_namespace}" >/dev/null 2>&1
+  done
+  if [[ "${namespace_created}" == true ]]; then
+    kubectl delete namespace "${test_namespace}" --wait=true --timeout=60s >/dev/null 2>&1
+    kubectl delete namespace "${test_namespace}" --wait=false >/dev/null 2>&1
+  fi
+}
+trap cleanup EXIT
+
+if kubectl get namespace "${test_namespace}" >/dev/null 2>&1; then
+  echo "test namespace already exists: ${test_namespace}; choose another TEST_NAMESPACE" >&2
+  exit 1
+fi
+kubectl create namespace "${test_namespace}" >/dev/null
+namespace_created=true
+
+run_psql() {
+  local pod="$1"
+  local database="$2"
+  local sql="$3"
+  kubectl --namespace "${test_namespace}" exec "${pod}" -c postgresql -- \
+    psql -U postgres -d "${database}" -v ON_ERROR_STOP=1 -Atqc "${sql}"
+}
+
+for version in 14.24 15.19 16.15 17.11 18.6; do
+  major="${version%%.*}"
+  release="integration-pg${major}"
+  pod="${release}-postgresql-0"
+  image_tag="${version}${image_tag_suffix}"
+  releases+=("${release}")
+
+  helm upgrade --install "${release}" "${chart_package}" \
+    --namespace "${test_namespace}" \
+    --set-string "image.registry=${image_registry}" \
+    --set-string "image.repository=${image_repository}" \
+    --set-string "image.tag=${image_tag}" \
+    --set image.pullPolicy=IfNotPresent \
+    --set 'postgresql.extensions={timescaledb,pg_cron,pgaudit,repmgr}' \
+    --set persistence.enabled=false \
+    --set metrics.enabled=false \
+    --set resourcesPreset=none \
+    --set-string "auth.password=integration-${major}" \
+    --wait --timeout "${helm_timeout}" >/dev/null
+
+  kubectl --namespace "${test_namespace}" wait --for=condition=ready \
+    "pod/${pod}" --timeout=180s >/dev/null
+
+  extension_count="$(run_psql "${pod}" postgres "SELECT count(*) FROM pg_extension WHERE extname IN ('timescaledb','pg_cron','pgaudit','repmgr')")"
+  preload="$(run_psql "${pod}" postgres 'SHOW shared_preload_libraries')"
+  cron_database="$(run_psql "${pod}" postgres 'SHOW cron.database_name')"
+  timescale_rows="$(run_psql "${pod}" postgres "DROP TABLE IF EXISTS integration_metrics; CREATE TABLE integration_metrics(ts timestamptz NOT NULL, v integer); SELECT create_hypertable('integration_metrics','ts'); INSERT INTO integration_metrics VALUES (now(),1),(now()+interval '1 minute',2); SELECT count(*) FROM integration_metrics" | tail -n 1)"
+
+  [[ "${extension_count}" == "4" ]] || { echo "${version}: expected 4 extensions, got ${extension_count}" >&2; exit 1; }
+  [[ "${cron_database}" == "postgres" ]] || { echo "${version}: unexpected cron.database_name=${cron_database}" >&2; exit 1; }
+  [[ "${timescale_rows}" == "2" ]] || { echo "${version}: TimescaleDB test returned ${timescale_rows}" >&2; exit 1; }
+  grep -q 'timescaledb' <<<"${preload}"
+  grep -q 'pg_cron' <<<"${preload}"
+  grep -q 'pgaudit' <<<"${preload}"
+
+  echo "${version}: extensions=${extension_count} preload=${preload} cron_database=${cron_database} timescale_rows=${timescale_rows}"
+  helm uninstall "${release}" --namespace "${test_namespace}" >/dev/null
+done
+
+# A non-default database exercises pg_cron's database-name requirement. The
+# chart must generate cron.database_name from auth.database before initdb runs.
+release="integration-custom-db"
+pod="${release}-postgresql-0"
+releases+=("${release}")
+helm upgrade --install "${release}" "${chart_package}" \
+  --namespace "${test_namespace}" \
+  --set-string "image.registry=${image_registry}" \
+  --set-string "image.repository=${image_repository}" \
+  --set-string "image.tag=16.15${image_tag_suffix}" \
+  --set image.pullPolicy=IfNotPresent \
+  --set 'postgresql.extensions={timescaledb,pg_cron,pgaudit,repmgr}' \
+  --set auth.database=app \
+  --set persistence.enabled=false \
+  --set metrics.enabled=false \
+  --set resourcesPreset=none \
+  --set-string auth.password=integration-app \
+  --wait --timeout "${helm_timeout}" >/dev/null
+kubectl --namespace "${test_namespace}" wait --for=condition=ready \
+  "pod/${pod}" --timeout=180s >/dev/null
+
+custom_extension_count="$(run_psql "${pod}" app "SELECT count(*) FROM pg_extension WHERE extname IN ('timescaledb','pg_cron','pgaudit','repmgr')")"
+custom_cron_database="$(run_psql "${pod}" app 'SHOW cron.database_name')"
+custom_restarts="$(kubectl --namespace "${test_namespace}" get pod "${pod}" -o jsonpath='{.status.containerStatuses[0].restartCount}')"
+[[ "${custom_extension_count}" == "4" ]] || { echo "custom database: expected 4 extensions, got ${custom_extension_count}" >&2; exit 1; }
+[[ "${custom_cron_database}" == "app" ]] || { echo "custom database: unexpected cron.database_name=${custom_cron_database}" >&2; exit 1; }
+[[ "${custom_restarts}" == "0" ]] || { echo "custom database: pod restarted ${custom_restarts} times" >&2; exit 1; }
+echo "custom database: extensions=${custom_extension_count} cron_database=${custom_cron_database} restarts=${custom_restarts}"

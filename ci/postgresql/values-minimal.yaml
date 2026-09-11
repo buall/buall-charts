@@ -1,0 +1,5 @@
+auth:
+  password: test-password
+persistence:
+  enabled: false
+

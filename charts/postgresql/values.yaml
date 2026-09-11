@@ -1,0 +1,191 @@
+# Global defaults shared by middleware charts. Component-level settings take
+# precedence when explicitly configured.
+global:
+  # Optional registry prefix for the default images.
+  imageRegistry: ""
+  # Image pull secrets usable by the PostgreSQL pod.
+  imagePullSecrets: []
+  # Default StorageClass for persistent volumes.
+  storageClass: ""
+
+# PostgreSQL uses the upstream official image. Do not replace this with a
+# Bitnami image; the templates use the official image environment contract.
+image:
+  # Override global.imageRegistry for this image when needed.
+  registry: docker.io
+  repository: library/postgres
+  # Chart appVersion is the default tag; pin a digest for stricter supply-chain control.
+  tag: "16.4"
+  digest: ""
+  pullPolicy: IfNotPresent
+
+# Resource naming and metadata customisation.
+nameOverride: ""
+fullnameOverride: ""
+commonLabels: {}
+commonAnnotations: {}
+podLabels: {}
+podAnnotations: {}
+# Component-level image pull secrets. Falls back to global.imagePullSecrets.
+imagePullSecrets: []
+
+# PostgreSQL bootstrap credentials. The password below is suitable only for
+# development. For production, set existingSecret and keep credentials out of Git.
+auth:
+  username: postgres
+  password: postgres
+  database: postgres
+  # If set, this Secret is referenced and no Secret is created by the chart.
+  existingSecret: ""
+  # Keys expected in the generated or existing Secret.
+  secretKeys:
+    usernameKey: username
+    passwordKey: password
+    databaseKey: database
+
+# Native PostgreSQL image settings. initdb scripts are executed only when the
+# data directory is initialized for the first time.
+postgresql:
+  # Explicit PGDATA keeps the data path stable across image major versions.
+  pgdata: /var/lib/postgresql/data/pgdata
+  # Extension names are turned into idempotent CREATE EXTENSION statements
+  # during first-time database initialization. The image must contain each
+  # extension package. timescaledb, pgaudit, and pg_cron are also added to
+  # shared_preload_libraries automatically; repmgr is not a preload library.
+  extensions: []
+  # pg_cron uses auth.database by default. Set this when auth.existingSecret
+  # contains a database name that is not represented in auth.database.
+  cronDatabaseName: ""
+  # Additional preload libraries for extensions not known by the chart.
+  sharedPreloadLibraries: []
+  # Optional contents for native postgresql.conf and pg_hba.conf files.
+  configuration: ""
+  pgHbaConfiguration: ""
+
+# Files mounted at /docker-entrypoint-initdb.d/ and processed by the official
+# PostgreSQL entrypoint during first-time database initialization.
+initdbScripts: {}
+
+# Preset resources are used only when resources is empty. Explicit resources
+# take precedence. Supported presets: none, nano, micro, small, medium, large,
+# xlarge, 2xlarge. Production workloads should set resources explicitly.
+resourcesPreset: nano
+resources: {}
+
+# Stateful storage. persistence.storageClass overrides global.storageClass;
+# when both are empty, Kubernetes selects its default StorageClass.
+persistence:
+  enabled: true
+  storageClass: ""
+  accessModes:
+    - ReadWriteOnce
+  size: 20Gi
+  annotations: {}
+
+# Application Service. The headless Service used by the StatefulSet is always
+# created separately as <release>-postgresql-headless.
+service:
+  type: ClusterIP
+  port: 5432
+  annotations: {}
+  clusterIP: ""
+  loadBalancerIP: ""
+  loadBalancerSourceRanges: []
+  externalTrafficPolicy: Cluster
+
+# Additional settings for the StatefulSet headless Service.
+headlessService:
+  annotations: {}
+
+# All probes use pg_isready from the official PostgreSQL image.
+startupProbe:
+  enabled: true
+  initialDelaySeconds: 10
+  periodSeconds: 10
+  timeoutSeconds: 5
+  failureThreshold: 30
+  successThreshold: 1
+readinessProbe:
+  enabled: true
+  initialDelaySeconds: 5
+  periodSeconds: 10
+  timeoutSeconds: 5
+  failureThreshold: 6
+  successThreshold: 1
+livenessProbe:
+  enabled: true
+  initialDelaySeconds: 30
+  periodSeconds: 10
+  timeoutSeconds: 5
+  failureThreshold: 6
+  successThreshold: 1
+
+# Pod-level and container-level security settings. Empty defaults avoid
+# assuming a UID/GID that may not match a particular official image variant.
+podSecurityContext: {}
+containerSecurityContext: {}
+# Scheduling controls. Presets are intentionally small escape hatches; use
+# affinity directly for advanced placement rules.
+nodeSelector: {}
+tolerations: []
+affinity: {}
+topologySpreadConstraints: []
+podAffinityPreset: ""
+podAntiAffinityPreset: ""
+
+# Escape hatches for uncommon integrations without expanding the stable API for
+# every use case.
+extraEnvVars: []
+extraVolumes: []
+extraVolumeMounts: []
+
+# PostgreSQL does not need the Kubernetes API, so token automounting is disabled
+# by default.
+serviceAccount:
+  create: true
+  name: ""
+  annotations: {}
+  automountServiceAccountToken: false
+
+# Optional postgres_exporter sidecar and metrics Service.
+metrics:
+  enabled: false
+  # Use a community-maintained exporter, not a Bitnami runtime image.
+  image:
+    registry: quay.io
+    repository: prometheuscommunity/postgres-exporter
+    tag: v0.15.0
+    digest: ""
+    pullPolicy: IfNotPresent
+  # Uses the same resource preset model as the PostgreSQL container.
+  resourcesPreset: nano
+  resources: {}
+  containerSecurityContext: {}
+  service:
+    type: ClusterIP
+    port: 9187
+    annotations: {}
+  # ServiceMonitor is opt-in and requires Prometheus Operator CRDs when enabled.
+  serviceMonitor:
+    enabled: false
+    namespace: ""
+    interval: 30s
+    scrapeTimeout: ""
+    labels: {}
+    annotations: {}
+    selector: {}
+    relabelings: []
+    metricRelabelings: []
+
+# Optional init container for StorageClasses that require a one-time ownership
+# correction. It is disabled by default and is not required for normal startup.
+volumePermissions:
+  enabled: false
+  image:
+    registry: docker.io
+    repository: busybox
+    tag: "1.36"
+    digest: ""
+    pullPolicy: IfNotPresent
+  resourcesPreset: nano
+  resources: {}

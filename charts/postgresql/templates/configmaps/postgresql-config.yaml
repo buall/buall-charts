@@ -1,0 +1,36 @@
+{{/*
+Copyright (c) 2026 middleware-charts contributors.
+SPDX-License-Identifier: Apache-2.0
+*/}}
+
+{{/* vim: set filetype=mustache: */}}
+
+{{/*
+Create the ConfigMap containing native PostgreSQL configuration files.
+*/}}
+{{- $generatedPreload := include "postgresql.sharedPreloadLibraries" . | trim -}}
+{{- $generatedCronDatabase := include "postgresql.generatedCronDatabaseConfiguration" . | trim -}}
+{{- $hasRawPreload := contains "shared_preload_libraries" (default "" .Values.postgresql.configuration) -}}
+{{- $hasRawCronDatabase := contains "cron.database_name" (default "" .Values.postgresql.configuration) -}}
+{{- $useGeneratedPreload := and (ne $generatedPreload "") (not $hasRawPreload) -}}
+{{- $useGeneratedCronDatabase := and (ne $generatedCronDatabase "") (not $hasRawCronDatabase) -}}
+{{- if or .Values.postgresql.configuration .Values.postgresql.pgHbaConfiguration $useGeneratedPreload $useGeneratedCronDatabase }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "postgresql.configurationConfigMapName" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "postgresql.labels" . | nindent 4 }}
+data:
+  {{- if or .Values.postgresql.configuration $useGeneratedPreload $useGeneratedCronDatabase }}
+  postgresql.conf: |
+{{- if .Values.postgresql.configuration }}{{ .Values.postgresql.configuration | nindent 4 }}{{ end }}
+{{- if $useGeneratedPreload }}{{ printf "shared_preload_libraries = '%s'" $generatedPreload | nindent 4 }}{{ end }}
+{{- if $useGeneratedCronDatabase }}{{ $generatedCronDatabase | nindent 4 }}{{ end }}
+  {{- end }}
+  {{- if .Values.postgresql.pgHbaConfiguration }}
+  pg_hba.conf: |
+    {{- .Values.postgresql.pgHbaConfiguration | nindent 4 }}
+  {{- end }}
+{{- end }}

@@ -1,0 +1,6 @@
+.DS_Store
+.workbuddy/
+.idea/
+*.tgz
+dist/
+.helm/

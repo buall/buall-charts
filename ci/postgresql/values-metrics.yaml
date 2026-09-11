@@ -1,0 +1,11 @@
+auth:
+  password: test-password
+persistence:
+  enabled: false
+metrics:
+  enabled: true
+  serviceMonitor:
+    enabled: true
+    labels:
+      release: prometheus
+

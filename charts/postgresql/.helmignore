@@ -1,0 +1,8 @@
+# Helm package metadata and local development files.
+.helmignore
+.git/
+.gitignore
+.idea/
+*.swp
+*.tmp
+*.tgz

@@ -1,0 +1,11 @@
+PostgreSQL is deployed as a single-instance StatefulSet.
+
+Connect from inside the cluster with:
+  kubectl run {{ include "postgresql.fullname" . }}-client --rm -it --restart=Never \
+    --image={{ include "postgresql.image" . }} -- psql \
+    -h {{ include "postgresql.fullname" . }} -U {{ .Values.auth.username }} -d {{ .Values.auth.database }}
+
+The application service is {{ include "postgresql.fullname" . }}:{{ .Values.service.port }}.
+{{- if .Values.metrics.enabled }}
+Metrics are exposed on {{ include "postgresql.metricsServiceName" . }}:{{ .Values.metrics.service.port }}.
+{{- end }}
