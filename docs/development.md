@@ -17,7 +17,7 @@ matching `ci/<chart>/` directory to include it in these checks.
 For a cluster-level test using images already loaded on the nodes, run:
 
 ```bash
-CHART_PACKAGE=dist/postgresql-0.1.1.tgz \
+CHART_PACKAGE=dist/postgresql-0.1.2.tgz \
 IMAGE_REGISTRY=registry.example.com \
 IMAGE_REPOSITORY=postgres-extensions \
 IMAGE_TAG_SUFFIX=<image-tag-suffix> \
@@ -25,8 +25,9 @@ IMAGE_TAG_SUFFIX=<image-tag-suffix> \
 ```
 
 `test-integration.sh` installs only the packaged chart, validates PostgreSQL
-14.24 through 18.6, checks all four extensions, preload libraries and a
-TimescaleDB write/read operation, and covers a non-default `auth.database`.
+14.24 through 18.6, checks all five extensions, preload libraries, a
+TimescaleDB write/read operation, and a PostGIS geometry function; it also
+covers a non-default `auth.database`.
 It removes its temporary namespace on exit. The broader extension and
 persistence verification procedure is recorded in
 `docs/pg-extensions-verification.md`.

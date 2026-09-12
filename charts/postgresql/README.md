@@ -1,23 +1,26 @@
 # PostgreSQL
 
-This chart deploys one PostgreSQL instance with the upstream
-[`postgres`](https://hub.docker.com/_/postgres) image. It does not use
-Bitnami images, `bitnami/common`, `/opt/bitnami`, or Bitnami environment
-variables. It intentionally does not implement HA, replicas, replication,
-automatic backups, or in-place major upgrades.
+This chart deploys one PostgreSQL instance with
+[`buall/postgres-stack`](https://hub.docker.com/r/buall/postgres-stack), a
+PostgreSQL-compatible image built from the upstream `postgres` image. It does
+not use Bitnami images, `bitnami/common`, `/opt/bitnami`, or Bitnami
+environment variables. It intentionally does not implement HA, replicas,
+replication, automatic backups, or in-place major upgrades.
 
 ## Quick start
 
 ```bash
-helm install db ./charts/postgresql
+helm repo add buall-charts https://buall.github.io/buall-charts
+helm repo update
+helm upgrade --install postgresql buall-charts/postgresql
 ```
 
-The default image is `docker.io/library/postgres:16.4`. The chart version and
-the PostgreSQL `appVersion` are independent: chart `0.1.0` can later be used
-with another PostgreSQL tag by setting `image.tag`.
+The default image is `docker.io/buall/postgres-stack:18.6`. The chart version
+and the PostgreSQL `appVersion` are independent; use another PostgreSQL tag by
+setting `image.tag`.
 
 ```bash
-helm install db ./charts/postgresql --set image.tag=18.6
+helm install postgresql ./charts/postgresql --set image.tag=18.6
 ```
 
 The following PostgreSQL versions have been verified with this chart:
@@ -189,7 +192,7 @@ settings. For a complete, version-matched reference, use the PostgreSQL
 [complete official manual](https://www.postgresql.org/docs/current/) and its
 [Server Configuration reference](https://www.postgresql.org/docs/current/runtime-config.html).
 Replace `current` in either URL with the image major version (for example,
-`16`). See especially [connections](https://www.postgresql.org/docs/current/runtime-config-connection.html),
+`18`). See especially [connections](https://www.postgresql.org/docs/current/runtime-config-connection.html),
 [resource consumption](https://www.postgresql.org/docs/current/runtime-config-resource.html),
 [WAL](https://www.postgresql.org/docs/current/runtime-config-wal.html), and
 [logging](https://www.postgresql.org/docs/current/runtime-config-logging.html).
@@ -211,8 +214,9 @@ generate the idempotent `CREATE EXTENSION` statements automatically:
 
 ```yaml
 image:
-  repository: myorg/postgres-with-extensions
-  tag: "16.15"
+  registry: docker.io
+  repository: buall/postgres-stack
+  tag: "18.6"
 
 postgresql:
   extensions:
@@ -220,13 +224,15 @@ postgresql:
     - repmgr
     - pgaudit
     - pg_cron
+    - postgis
 ```
 
 The chart automatically adds `timescaledb`, `pgaudit`, and `pg_cron` to
-`shared_preload_libraries`. `repmgr` is initialized as a database extension but
-is not automatically preloaded because it is not a PostgreSQL preload library.
+`shared_preload_libraries`. PostGIS and `repmgr` are initialized as database
+extensions but are not automatically preloaded because they are not PostgreSQL
+preload libraries.
 The companion images build TimescaleDB from its official source and install
-pg_cron, pgAudit, and repmgr from pinned PGDG packages. The image must match
+pg_cron, pgAudit, PostGIS, and repmgr from pinned PGDG packages. The image must match
 the PostgreSQL major version selected by `image.tag`.
 The companion image set in `images/postgres-extensions/` includes PGDG's
 PostgreSQL 18 repmgr package. It was verified with a primary/standby pair:

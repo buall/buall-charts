@@ -17,14 +17,14 @@
 #   HELM_TIMEOUT         Helm 等待超时（默认：5m）
 #
 # 示例：
-#   CHART_PACKAGE=dist/postgresql-0.1.1.tgz \
+#   CHART_PACKAGE=dist/postgresql-0.1.2.tgz \
 #   IMAGE_TAG_SUFFIX=.locked \
 #   ./scripts/test-integration.sh
 
 set -euo pipefail
 
 root_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-chart_package="${CHART_PACKAGE:-${root_dir}/dist/postgresql-0.1.1.tgz}"
+chart_package="${CHART_PACKAGE:-${root_dir}/dist/postgresql-0.1.2.tgz}"
 test_namespace="${TEST_NAMESPACE:-postgresql-integration}"
 image_registry="${IMAGE_REGISTRY:-registry.example.com}"
 image_repository="${IMAGE_REPOSITORY:-postgres-extensions}"
@@ -78,7 +78,7 @@ for version in 14.24 15.19 16.15 17.11 18.6; do
     --set-string "image.repository=${image_repository}" \
     --set-string "image.tag=${image_tag}" \
     --set image.pullPolicy=IfNotPresent \
-    --set 'postgresql.extensions={timescaledb,pg_cron,pgaudit,repmgr}' \
+    --set 'postgresql.extensions={timescaledb,pg_cron,pgaudit,postgis,repmgr}' \
     --set persistence.enabled=false \
     --set metrics.enabled=false \
     --set resourcesPreset=none \
@@ -88,19 +88,21 @@ for version in 14.24 15.19 16.15 17.11 18.6; do
   kubectl --namespace "${test_namespace}" wait --for=condition=ready \
     "pod/${pod}" --timeout=180s >/dev/null
 
-  extension_count="$(run_psql "${pod}" postgres "SELECT count(*) FROM pg_extension WHERE extname IN ('timescaledb','pg_cron','pgaudit','repmgr')")"
+  extension_count="$(run_psql "${pod}" postgres "SELECT count(*) FROM pg_extension WHERE extname IN ('timescaledb','pg_cron','pgaudit','postgis','repmgr')")"
   preload="$(run_psql "${pod}" postgres 'SHOW shared_preload_libraries')"
   cron_database="$(run_psql "${pod}" postgres 'SHOW cron.database_name')"
   timescale_rows="$(run_psql "${pod}" postgres "DROP TABLE IF EXISTS integration_metrics; CREATE TABLE integration_metrics(ts timestamptz NOT NULL, v integer); SELECT create_hypertable('integration_metrics','ts'); INSERT INTO integration_metrics VALUES (now(),1),(now()+interval '1 minute',2); SELECT count(*) FROM integration_metrics" | tail -n 1)"
+  postgis_point="$(run_psql "${pod}" postgres "SELECT ST_AsText(ST_SetSRID(ST_MakePoint(121.47, 31.23), 4326))")"
 
-  [[ "${extension_count}" == "4" ]] || { echo "${version}: expected 4 extensions, got ${extension_count}" >&2; exit 1; }
+  [[ "${extension_count}" == "5" ]] || { echo "${version}: expected 5 extensions, got ${extension_count}" >&2; exit 1; }
   [[ "${cron_database}" == "postgres" ]] || { echo "${version}: unexpected cron.database_name=${cron_database}" >&2; exit 1; }
   [[ "${timescale_rows}" == "2" ]] || { echo "${version}: TimescaleDB test returned ${timescale_rows}" >&2; exit 1; }
+  [[ "${postgis_point}" == "POINT(121.47 31.23)" ]] || { echo "${version}: PostGIS test returned ${postgis_point}" >&2; exit 1; }
   grep -q 'timescaledb' <<<"${preload}"
   grep -q 'pg_cron' <<<"${preload}"
   grep -q 'pgaudit' <<<"${preload}"
 
-  echo "${version}: extensions=${extension_count} preload=${preload} cron_database=${cron_database} timescale_rows=${timescale_rows}"
+  echo "${version}: extensions=${extension_count} preload=${preload} cron_database=${cron_database} timescale_rows=${timescale_rows} postgis_point=${postgis_point}"
   helm uninstall "${release}" --namespace "${test_namespace}" >/dev/null
 done
 
@@ -115,7 +117,7 @@ helm upgrade --install "${release}" "${chart_package}" \
   --set-string "image.repository=${image_repository}" \
   --set-string "image.tag=16.15${image_tag_suffix}" \
   --set image.pullPolicy=IfNotPresent \
-  --set 'postgresql.extensions={timescaledb,pg_cron,pgaudit,repmgr}' \
+  --set 'postgresql.extensions={timescaledb,pg_cron,pgaudit,postgis,repmgr}' \
   --set auth.database=app \
   --set persistence.enabled=false \
   --set metrics.enabled=false \
@@ -125,10 +127,10 @@ helm upgrade --install "${release}" "${chart_package}" \
 kubectl --namespace "${test_namespace}" wait --for=condition=ready \
   "pod/${pod}" --timeout=180s >/dev/null
 
-custom_extension_count="$(run_psql "${pod}" app "SELECT count(*) FROM pg_extension WHERE extname IN ('timescaledb','pg_cron','pgaudit','repmgr')")"
+custom_extension_count="$(run_psql "${pod}" app "SELECT count(*) FROM pg_extension WHERE extname IN ('timescaledb','pg_cron','pgaudit','postgis','repmgr')")"
 custom_cron_database="$(run_psql "${pod}" app 'SHOW cron.database_name')"
 custom_restarts="$(kubectl --namespace "${test_namespace}" get pod "${pod}" -o jsonpath='{.status.containerStatuses[0].restartCount}')"
-[[ "${custom_extension_count}" == "4" ]] || { echo "custom database: expected 4 extensions, got ${custom_extension_count}" >&2; exit 1; }
+[[ "${custom_extension_count}" == "5" ]] || { echo "custom database: expected 5 extensions, got ${custom_extension_count}" >&2; exit 1; }
 [[ "${custom_cron_database}" == "app" ]] || { echo "custom database: unexpected cron.database_name=${custom_cron_database}" >&2; exit 1; }
 [[ "${custom_restarts}" == "0" ]] || { echo "custom database: pod restarted ${custom_restarts} times" >&2; exit 1; }
 echo "custom database: extensions=${custom_extension_count} cron_database=${custom_cron_database} restarts=${custom_restarts}"

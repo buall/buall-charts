@@ -36,7 +36,7 @@ if ! command -v docker >/dev/null 2>&1; then
   exit 1
 fi
 
-echo "==> Starting docker build (this compiles TimescaleDB, pg_cron, pgAudit, repmgr — can take 10-20 min)..."
+echo "==> Starting docker build (this compiles TimescaleDB and installs pg_cron, pgAudit, PostGIS, repmgr — can take 10-20 min)..."
 docker build \
   --platform "${PLATFORM}" \
   --build-arg "POSTGRESQL_VERSION=${PG_VERSION}" \
@@ -48,4 +48,4 @@ docker images "${PG_TAG}"
 
 echo "==> Verifying extensions are present in the image:"
 docker run --rm --platform "${PLATFORM}" "${PG_TAG}" \
-  bash -c 'ls /usr/lib/postgresql/*/lib/ | grep -E "timescaledb|pgaudit|pg_cron|repmgr" || true'
+  bash -c 'for extension in timescaledb pg_cron pgaudit postgis repmgr; do test -f "/usr/share/postgresql/14/extension/${extension}.control"; done'

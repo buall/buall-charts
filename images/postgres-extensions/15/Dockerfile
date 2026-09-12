@@ -50,9 +50,11 @@ RUN set -eux; \
     apt-get -o Acquire::Retries=5 -o Acquire::http::Timeout=60 install -y --no-install-recommends \
         postgresql-15-cron=1.6.8-1.pgdg13+1 \
         postgresql-15-pgaudit=1.7.1-2.pgdg13+1 \
+        postgresql-15-postgis-3=3.6.4+dfsg-2.pgdg13+1 \
+        postgresql-15-postgis-3-scripts=3.6.4+dfsg-2.pgdg13+1 \
         postgresql-15-repmgr=5.5.0+debpgdg-3.pgdg13+1; \
     rm -rf /var/lib/apt/lists/*; \
-    for extension in timescaledb pg_cron pgaudit repmgr; do \
+    for extension in timescaledb pg_cron pgaudit postgis repmgr; do \
         test -f "/usr/share/postgresql/15/extension/${extension}.control"; \
     done; \
     test -f "/usr/lib/postgresql/15/lib/timescaledb-tsl-${TIMESCALEDB_VERSION}.so"

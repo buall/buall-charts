@@ -8,6 +8,7 @@ postgresql:
     - repmgr
     - pgaudit
     - pg_cron
+    - postgis
 
 auth:
   password: test-password

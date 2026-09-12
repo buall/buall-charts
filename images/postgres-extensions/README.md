@@ -1,23 +1,23 @@
 # PostgreSQL extension images
 
 These Dockerfiles extend the official `docker.io/library/postgres` image with
-TimescaleDB, `pg_cron`, pgAudit, and repmgr. They preserve the official image
+TimescaleDB, `pg_cron`, pgAudit, PostGIS, and repmgr. They preserve the official image
 contract used by the chart (`POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_DB`,
 `PGDATA`, and `/docker-entrypoint-initdb.d/`).
 
 Each PostgreSQL major version has its own directory. TimescaleDB is built from
 its pinned official source release in a builder stage, without the Apache-only
-build option. pg_cron, pgAudit, and repmgr are installed as pinned packages from
+build option. pg_cron, pgAudit, PostGIS, and repmgr are installed as pinned packages from
 the **PGDG apt repository** (`apt.postgresql.org`), which the official
 `postgres` images already configure for their Debian release.
 
-| Directory | PostgreSQL | TimescaleDB | pg_cron | pgAudit | repmgr |
+| Directory | PostgreSQL | TimescaleDB | pg_cron | pgAudit | PostGIS | repmgr |
 | --- | --- | --- | --- | --- | --- |
-| `14/` | 14.24 | 2.19.3 | 1.6 | 1.6.3 | 5.5.0 |
-| `15/` | 15.19 | 2.28.3 | 1.6 | 1.7.1 | 5.5.0 |
-| `16/` | 16.15 | 2.30.0 | 1.6 | 16.1 | 5.5.0 |
-| `17/` | 17.11 | 2.30.0 | 1.6 | 17.1 | 5.5.0 |
-| `18/` | 18.6 | 2.30.0 | 1.6 | 18.0 | 5.5.0 |
+| `14/` | 14.24 | 2.19.3 | 1.6 | 1.6.3 | 3.6.4 | 5.5.0 |
+| `15/` | 15.19 | 2.28.3 | 1.6 | 1.7.1 | 3.6.4 | 5.5.0 |
+| `16/` | 16.15 | 2.30.0 | 1.6 | 16.1 | 3.6.4 | 5.5.0 |
+| `17/` | 17.11 | 2.30.0 | 1.6 | 17.1 | 3.6.4 | 5.5.0 |
+| `18/` | 18.6 | 2.30.0 | 1.6 | 18.0 | 3.6.4 | 5.5.0 |
 
 The table shows extension versions reported by `pg_extension` after
 `CREATE EXTENSION`. The Dockerfiles pin the TimescaleDB source tag and exact
@@ -123,9 +123,16 @@ For the complete, version-matched parameter list, see the PostgreSQL
 Configuration reference](https://www.postgresql.org/docs/current/runtime-config.html);
 replace `current` with the image major version, such as `18`.
 
-After publishing an image, enable the extensions in the chart values. Note that
-the chart composes the reference as `registry/repository:tag`, so the registry
-and repository must be set separately:
+After publishing an image, deploy it through the public chart repository. The
+chart composes the reference as `registry/repository:tag`, so the registry and
+repository must be set separately for a custom image:
+
+```bash
+helm repo add buall-charts https://buall.github.io/buall-charts
+helm repo update
+```
+
+Set the published custom image and desired extensions in `values.yaml`:
 
 ```yaml
 image:
@@ -138,9 +145,20 @@ postgresql:
     - timescaledb
     - pg_cron
     - pgaudit
+    - postgis
     - repmgr
 ```
 
 The chart then generates the idempotent `CREATE EXTENSION` statements and adds
-the required preload libraries for `timescaledb`, `pg_cron`, and `pgaudit`
-(`repmgr` is installed as an extension but is not a preload library).
+the required preload libraries for `timescaledb`, `pg_cron`, and `pgaudit`.
+PostGIS and repmgr are installed as extensions but are not preload libraries.
+
+```bash
+helm upgrade --install postgresql buall-charts/postgresql \
+  --namespace postgresql \
+  --create-namespace \
+  --values values.yaml
+```
+
+Extension initialization runs only when the data directory is empty. Changing
+the extension list does not create extensions on an existing PVC.

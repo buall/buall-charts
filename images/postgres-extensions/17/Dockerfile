@@ -29,8 +29,8 @@ RUN set -eux; \
     test "$(pg_config --version | awk '{print $2}' | cut -d. -f1)" = "17"; \
     apt-get -o Acquire::Retries=5 -o Acquire::http::Timeout=60 update; \
     apt-get -o Acquire::Retries=5 -o Acquire::http::Timeout=60 install -y --no-install-recommends \
-        postgresql-17-cron=1.6.8-1.pgdg13+1 postgresql-17-pgaudit=17.1-2.pgdg13+1 postgresql-17-repmgr=5.5.0+debpgdg-3.pgdg13+1; \
+        postgresql-17-cron=1.6.8-1.pgdg13+1 postgresql-17-pgaudit=17.1-2.pgdg13+1 postgresql-17-postgis-3=3.6.4+dfsg-2.pgdg13+1 postgresql-17-postgis-3-scripts=3.6.4+dfsg-2.pgdg13+1 postgresql-17-repmgr=5.5.0+debpgdg-3.pgdg13+1; \
     rm -rf /var/lib/apt/lists/*; \
-    for extension in timescaledb pg_cron pgaudit repmgr; do test -f "/usr/share/postgresql/17/extension/${extension}.control"; done; \
+    for extension in timescaledb pg_cron pgaudit postgis repmgr; do test -f "/usr/share/postgresql/17/extension/${extension}.control"; done; \
     test -f "/usr/lib/postgresql/17/lib/timescaledb-tsl-${TIMESCALEDB_VERSION}.so"
 USER postgres

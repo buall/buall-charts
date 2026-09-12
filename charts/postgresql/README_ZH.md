@@ -1,8 +1,8 @@
 # PostgreSQL
 
-此 chart 使用 PostgreSQL 官方 [`postgres`](https://hub.docker.com/_/postgres)
-镜像部署单实例 PostgreSQL。它不使用 Bitnami 镜像、`bitnami/common`、
-`/opt/bitnami` 或 Bitnami 环境变量。
+此 chart 使用 [`buall/postgres-stack`](https://hub.docker.com/r/buall/postgres-stack)
+部署单实例 PostgreSQL；该镜像基于 PostgreSQL 官方 `postgres` 镜像并保留其运行时
+契约。它不使用 Bitnami 镜像、`bitnami/common`、`/opt/bitnami` 或 Bitnami 环境变量。
 
 此 chart 面向单实例场景，不提供高可用、多个副本、复制、自动备份或原地
 跨大版本升级功能。
@@ -10,14 +10,16 @@
 ## 快速开始
 
 ```bash
-helm install db ./charts/postgresql
+helm repo add buall-charts https://buall.github.io/buall-charts
+helm repo update
+helm upgrade --install postgresql buall-charts/postgresql
 ```
 
-默认镜像为 `docker.io/library/postgres:16.4`。Chart 版本与 PostgreSQL 的
+默认镜像为 `docker.io/buall/postgres-stack:18.6`。Chart 版本与 PostgreSQL 的
 `appVersion` 相互独立；可以通过设置 `image.tag` 使用其他 PostgreSQL 版本：
 
 ```bash
-helm install db ./charts/postgresql --set image.tag=18.6
+helm install postgresql ./charts/postgresql --set image.tag=18.6
 ```
 
 当前已验证可以使用以下 PostgreSQL 版本：
@@ -186,7 +188,7 @@ postgresql:
 PostgreSQL 版本为准，可查阅官方
 [完整官方手册](https://www.postgresql.org/docs/current/) 和
 [服务端配置参数索引](https://www.postgresql.org/docs/current/runtime-config.html)。将任一
-URL 中的 `current` 替换为镜像的大版本号（例如 `16`）。尤其可参考
+URL 中的 `current` 替换为镜像的大版本号（例如 `18`）。尤其可参考
 [连接](https://www.postgresql.org/docs/current/runtime-config-connection.html)、
 [资源消耗](https://www.postgresql.org/docs/current/runtime-config-resource.html)、
 [WAL](https://www.postgresql.org/docs/current/runtime-config-wal.html) 和
@@ -209,8 +211,9 @@ ORDER BY name;
 
 ```yaml
 image:
-  repository: myorg/postgres-with-extensions
-  tag: "16.15"
+  registry: docker.io
+  repository: buall/postgres-stack
+  tag: "18.6"
 
 postgresql:
   extensions:
@@ -218,13 +221,14 @@ postgresql:
     - repmgr
     - pgaudit
     - pg_cron
+    - postgis
 ```
 
 chart 会自动将 `timescaledb`、`pgaudit` 和 `pg_cron` 加入
-`shared_preload_libraries`。`repmgr` 会作为数据库扩展初始化，但不会自动
-预加载，因为它不是 PostgreSQL 的 preload library。
+`shared_preload_libraries`。PostGIS 和 `repmgr` 会作为数据库扩展初始化，但不会自动
+预加载，因为它们不是 PostgreSQL 的 preload library。
 `images/postgres-extensions/` 中的配套镜像从官方源码编译 TimescaleDB，并通过
-固定版本 PGDG 包安装 pg_cron、pgAudit 和 repmgr；镜像中的 PostgreSQL 大版本必须
+固定版本 PGDG 包安装 pg_cron、pgAudit、PostGIS 和 repmgr；镜像中的 PostgreSQL 大版本必须
 与 `image.tag` 选择的版本一致。
 `images/postgres-extensions/` 中的配套镜像通过 PGDG 包含 PostgreSQL 18 的
 repmgr，已完成主备 `primary register`、`standby clone`、`standby register`

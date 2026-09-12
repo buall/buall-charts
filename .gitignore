@@ -4,3 +4,4 @@
 *.tgz
 dist/
 .helm/
+.doc/
