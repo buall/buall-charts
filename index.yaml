@@ -5,6 +5,33 @@ entries:
       artifacthub.io/alternativeName: postgres
       artifacthub.io/category: database
       artifacthub.io/changes: |
+        - kind: changed
+          description: Use docker.io/buall/postgres-stack:18.6 as the default runtime image.
+    apiVersion: v2
+    appVersion: "18.6"
+    created: "2026-09-12T06:46:18.323335938Z"
+    description: A maintainable single-instance PostgreSQL Helm chart using the PostgreSQL-compatible
+      postgres-stack image
+    digest: d9574c5d9cc913244cfe2f4964e843de4f9b026b422ac6030417fc3cddf6fb0e
+    home: https://www.postgresql.org/
+    keywords:
+    - database
+    - postgres
+    - postgresql
+    maintainers:
+    - name: middleware-charts
+    name: postgresql
+    sources:
+    - https://github.com/buall/buall-charts
+    - https://github.com/postgres/postgres
+    type: application
+    urls:
+    - postgresql-0.1.2.tgz
+    version: 0.1.2
+  - annotations:
+      artifacthub.io/alternativeName: postgres
+      artifacthub.io/category: database
+      artifacthub.io/changes: |
         - kind: added
           description: Support a fixed Kubernetes Service NodePort with schema validation.
         - kind: added
@@ -29,4 +56,4 @@ entries:
     urls:
     - postgresql-0.1.1.tgz
     version: 0.1.1
-generated: "2026-09-11T06:49:11.377737767Z"
+generated: "2026-09-12T06:46:18.32334436Z"
