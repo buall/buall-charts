@@ -29,8 +29,8 @@ RUN set -eux; \
     test "$(pg_config --version | awk '{print $2}' | cut -d. -f1)" = "18"; \
     apt-get -o Acquire::Retries=5 -o Acquire::http::Timeout=60 update; \
     apt-get -o Acquire::Retries=5 -o Acquire::http::Timeout=60 install -y --no-install-recommends \
-        postgresql-18-cron=1.6.8-1.pgdg13+1 postgresql-18-pgaudit=18.0-3.pgdg13+1 postgresql-18-repmgr=5.5.0+debpgdg-3.pgdg13+1; \
+        postgresql-18-cron=1.6.8-1.pgdg13+1 postgresql-18-pgaudit=18.0-3.pgdg13+1 postgresql-18-postgis-3=3.6.4+dfsg-2.pgdg13+1 postgresql-18-postgis-3-scripts=3.6.4+dfsg-2.pgdg13+1 postgresql-18-repmgr=5.5.0+debpgdg-3.pgdg13+1; \
     rm -rf /var/lib/apt/lists/*; \
-    for extension in timescaledb pg_cron pgaudit repmgr; do test -f "/usr/share/postgresql/18/extension/${extension}.control"; done; \
+    for extension in timescaledb pg_cron pgaudit postgis repmgr; do test -f "/usr/share/postgresql/18/extension/${extension}.control"; done; \
     test -f "/usr/lib/postgresql/18/lib/timescaledb-tsl-${TIMESCALEDB_VERSION}.so"
 USER postgres

@@ -1,22 +1,22 @@
 # PostgreSQL 扩展镜像
 
 这些 Dockerfile 基于 PostgreSQL 官方 `docker.io/library/postgres` 镜像，安装
-TimescaleDB、`pg_cron`、pgAudit 和 repmgr。它们保留 chart 所依赖的官方镜像契约，
+TimescaleDB、`pg_cron`、pgAudit、PostGIS 和 repmgr。它们保留 chart 所依赖的官方镜像契约，
 包括 `POSTGRES_USER`、`POSTGRES_PASSWORD`、`POSTGRES_DB`、`PGDATA` 和
 `/docker-entrypoint-initdb.d/`。
 
 每个 PostgreSQL 大版本独立成目录。TimescaleDB 在 builder 阶段从固定的官方源码
-版本编译，且未启用 Apache-only 构建选项；pg_cron、pgAudit 和 repmgr 通过固定
+版本编译，且未启用 Apache-only 构建选项；pg_cron、pgAudit、PostGIS 和 repmgr 通过固定
 版本的 **PGDG apt 仓库**（`apt.postgresql.org`）安装。官方 `postgres` 镜像已按其
 Debian 版本预置 PGDG 仓库。
 
-| 目录 | PostgreSQL | TimescaleDB | pg_cron | pgAudit | repmgr |
+| 目录 | PostgreSQL | TimescaleDB | pg_cron | pgAudit | PostGIS | repmgr |
 | --- | --- | --- | --- | --- | --- |
-| `14/` | 14.24 | 2.19.3 | 1.6 | 1.6.3 | 5.5.0 |
-| `15/` | 15.19 | 2.28.3 | 1.6 | 1.7.1 | 5.5.0 |
-| `16/` | 16.15 | 2.30.0 | 1.6 | 16.1 | 5.5.0 |
-| `17/` | 17.11 | 2.30.0 | 1.6 | 17.1 | 5.5.0 |
-| `18/` | 18.6 | 2.30.0 | 1.6 | 18.0 | 5.5.0 |
+| `14/` | 14.24 | 2.19.3 | 1.6 | 1.6.3 | 3.6.4 | 5.5.0 |
+| `15/` | 15.19 | 2.28.3 | 1.6 | 1.7.1 | 3.6.4 | 5.5.0 |
+| `16/` | 16.15 | 2.30.0 | 1.6 | 16.1 | 3.6.4 | 5.5.0 |
+| `17/` | 17.11 | 2.30.0 | 1.6 | 17.1 | 3.6.4 | 5.5.0 |
+| `18/` | 18.6 | 2.30.0 | 1.6 | 18.0 | 3.6.4 | 5.5.0 |
 
 表中版本为 `CREATE EXTENSION` 后 `pg_extension` 中报告的扩展版本。Dockerfile
 固定 TimescaleDB 源码 tag 与 PGDG 包完整版本号；TimescaleDB 使用同大版本的
@@ -110,8 +110,16 @@ docker run -d \
 [服务端配置参数索引](https://www.postgresql.org/docs/current/runtime-config.html)；将
 URL 中的 `current` 替换为镜像的大版本号，例如 `18`。
 
-镜像发布后，在 chart values 中启用扩展。注意 chart 按
-`registry/repository:tag` 拼装镜像引用，因此 registry 与 repository 必须分开设置：
+镜像发布后，可通过公开 Chart 仓库部署。注意 chart 按
+`registry/repository:tag` 拼装镜像引用，因此使用自建镜像时 registry 与 repository
+必须分开设置：
+
+```bash
+helm repo add buall-charts https://buall.github.io/buall-charts
+helm repo update
+```
+
+在 `values.yaml` 中指定已发布的自建镜像并启用扩展：
 
 ```yaml
 image:
@@ -124,9 +132,20 @@ postgresql:
     - timescaledb
     - pg_cron
     - pgaudit
+    - postgis
     - repmgr
 ```
 
 随后 chart 会自动生成幂等的 `CREATE EXTENSION` 语句，并为 `timescaledb`、
-`pg_cron` 和 `pgaudit` 加入所需的 preload library（`repmgr` 只建扩展，不作为
-preload library）。
+`pg_cron` 和 `pgaudit` 加入所需的 preload library。PostGIS 和 `repmgr` 只建扩展，
+不作为 preload library。
+
+```bash
+helm upgrade --install postgresql buall-charts/postgresql \
+  --namespace postgresql \
+  --create-namespace \
+  --values values.yaml
+```
+
+扩展初始化脚本只会在空数据目录首次启动时运行；对已有 PVC 修改扩展列表不会自动
+创建扩展。

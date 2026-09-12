@@ -92,7 +92,7 @@ spec:
             {{- include "postgresql.resources" (dict "resources" .Values.volumePermissions.resources "preset" .Values.volumePermissions.resourcesPreset) | nindent 12 }}
       {{- end }}
       containers:
-        # The official PostgreSQL image and its native environment contract.
+        # The PostgreSQL-compatible runtime image and its native environment contract.
         - name: postgresql
           image: {{ include "postgresql.image" . }}
           imagePullPolicy: {{ .Values.image.pullPolicy }}

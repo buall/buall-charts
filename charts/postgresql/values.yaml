@@ -8,14 +8,14 @@ global:
   # Default StorageClass for persistent volumes.
   storageClass: ""
 
-# PostgreSQL uses the upstream official image. Do not replace this with a
-# Bitnami image; the templates use the official image environment contract.
+# PostgreSQL uses the PostgreSQL-compatible buall/postgres-stack image. It
+# preserves the official image environment contract; do not use a Bitnami image.
 image:
   # Override global.imageRegistry for this image when needed.
   registry: docker.io
-  repository: library/postgres
+  repository: buall/postgres-stack
   # Chart appVersion is the default tag; pin a digest for stricter supply-chain control.
-  tag: "16.4"
+  tag: "18.6"
   digest: ""
   pullPolicy: IfNotPresent
 

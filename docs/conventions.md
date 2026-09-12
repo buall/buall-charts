@@ -30,7 +30,7 @@ when a component has a supported exporter; ServiceMonitor is always opt-in.
 
 ## PostgreSQL-specific baseline
 
-The PostgreSQL chart uses the upstream image and native variables
-`POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_DB`, and `PGDATA`. New charts
-must not introduce Bitnami runtime paths or environment variables.
-
+The PostgreSQL chart defaults to `docker.io/buall/postgres-stack:18.6`, which
+preserves the upstream image contract and its native variables `POSTGRES_USER`,
+`POSTGRES_PASSWORD`, `POSTGRES_DB`, and `PGDATA`. New charts must not introduce
+Bitnami runtime paths or environment variables.
